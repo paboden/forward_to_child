@@ -39,13 +39,11 @@ function forward_to_child_pane_edit_form($form, $form_state) {
 
   $conf = $form_state['conf'];
 
-dpm($form_state);
   $form['ftc_pane_prefix' . $lang] = array(
     '#type' => 'textfield',
     '#title' => t('Link Prefix') . $lang_name,
     '#default_value' => $conf['ftc_pane_prefix' . $lang] ? $conf['ftc_pane_prefix' . $lang] : '',
   );
-  // Suffix to display after the parent item link
   $form['ftc_pane_suffix' . $lang] = array(
     '#type' => 'textfield',
     '#title' => t('Link Suffix') . $lang_name,
