@@ -1,0 +1,214 @@
+<?php
+
+/**
+ * Implements hook_permission().
+ */
+function forward_to_child_permission() {
+  return array(
+    'administer ftc' => array(
+      'title' => t('Administer Forward to Child'),
+      'description' => t('Administer the general settings for Forward to Child links'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_ctools_plugin_directory().
+ */
+function forward_to_child_ctools_plugin_directory($module, $plugin) {
+  return 'plugins/' . $plugin;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function forward_to_child_theme() {
+  // Setup the theme function array, declare template file
+  return array(
+    'forward_to_child_link' => array(
+      'variables' => array(
+        'ftc_link_item' => NULL,
+      ),
+      'template' => 'templates/forward-to-child-link',
+    ),
+  );
+}
+
+/**
+ * Implements hook_menu().
+ */
+function forward_to_child_menu() {
+  $items['admin/config/user-interface/forward-to-child'] = array(
+    'title' => t('Forward to Child'),
+    'description' => t('Configure the "Forward to Child" link blocks and settings'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('forward_to_child_settings'),
+    'access arguments' => array('administer ftc'),
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'forward_to_child.admin.inc',
+    'file path' => drupal_get_path('module', 'forward_to_child'),
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function forward_to_child_block_info() {
+  global $language;
+  $lang = ($language->language == 'en') ? '' : '_' . $language->language;
+
+  // Get the max # of ftc blocks set by user
+  $max_to_display = variable_get('ftc_number_of_forward_to_child_blocks' . $lang, 1);
+  $blocks = array();
+  // Generate max_to_display # of blocks
+  for($i = 1; $i <= $max_to_display; $i++) {
+    $blocks['forward_to_child_link_' . $i] = array(
+      'info' => t('Forward to Child Link - ' . $i),
+      'cache' => DRUPAL_CACHE_GLOBAL,
+    );
+  }
+
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function forward_to_child_block_view($delta = '') {
+  global $language;
+  $lang = ($language->language == 'en') ? '' : '_' . $language->language;
+
+  // Get max # of blocks so loop can build different case items
+  $max_to_display = variable_get('ftc_number_of_forward_to_child_blocks' . $lang, 1);
+  $block = array();
+  for($i = 1; $i <= $max_to_display; $i++) {
+    switch ($delta) {
+      case 'forward_to_child_link_' . $i:
+        // Before we set the block, we need to determine if there is an actual child item.
+        $forward_to_child_item = get_child_link_item();
+
+        // Get prefix and suffix set in item array.
+        $ftc_prefix = variable_get('ftc_block' . $i . '_prefix' . $lang);
+        $ftc_suffix = variable_get('ftc_block' . $i . '_suffix' . $lang);
+        $forward_to_child_item['ftc_prefix'] = $ftc_prefix ? $ftc_prefix . ' ' : '';
+        $forward_to_child_item['ftc_suffix'] = $ftc_suffix ? ' ' . $ftc_suffix : '';
+
+        if (isset($forward_to_child_item['href'])) {
+          $block['subject'] = '';
+          // Set block settings, get menu parent item
+          $block['content'] = array(
+            '#theme' => 'forward_to_child_link',
+            '#ftc_link_item' => $forward_to_child_item,
+          );
+        }
+        // If no child link, nullify the block so nothing is rendered.
+        else {
+          $block['subject'] = NULL;
+          $block['content'] = NULL;
+        }
+      break;
+    }
+  }
+
+  return $block;
+}
+
+/**
+ * Implements hook_block_configure().
+ */
+function forward_to_child_block_configure($delta = '') {
+  global $language;
+  $lang = ($language->language == 'en') ? '' : '_' . $language->language;
+
+  $max_to_display = variable_get('ftc_number_of_forward_to_child_blocks' . $lang, 1);
+  $form = array();
+  for($i = 1; $i <= $max_to_display; $i++) {
+    switch ($delta) {
+      // Create the block config form settings for each available block
+      case 'forward_to_child_link_' . $i:
+        // Prefix to display before the parent item link
+        $form['ftc_block' . $i . '_prefix' . $lang] = array(
+          '#type' => 'textfield',
+          '#title' => t('Link Prefix'),
+          '#default_value' => variable_get('ftc_block' . $i . '_prefix' . $lang, ''),
+        );
+        // Suffix to display after the parent item link
+        $form['ftc_block' . $i . '_suffix' . $lang] = array(
+          '#type' => 'textfield',
+          '#title' => t('Link Suffix'),
+          '#default_value' => variable_get('ftc_block' . $i . '_suffix' . $lang, ''),
+        );
+      break;
+    }
+  }
+
+  return $form;
+}
+
+/**
+ * Implements hook_block_save().
+ */
+function forward_to_child_block_save($delta = '', $edit = array()) {
+  global $language;
+  $lang = ($language->language == 'en') ? '' : '_' . $language->language;
+
+  $max_to_display = variable_get('ftc_number_of_forward_to_child_blocks' . $lang, 1);
+  for($i = 1; $i <= $max_to_display; $i++) {
+    switch ($delta) {
+      case 'forward_to_child_link_' . $i:
+        // Save the options set in the block config
+        variable_set('ftc_block' . $i . '_prefix' . $lang, $edit['ftc_block' . $i . '_prefix' . $lang]);
+        variable_set('ftc_block' . $i . '_suffix' . $lang, $edit['ftc_block' . $i . '_suffix' . $lang]);
+      break;
+    }
+  }
+}
+
+/**
+ * Implements hook_preprocess_page().
+ */
+function forward_to_child_preprocess_page(&$vars) {
+  $child_link_item = get_child_link_item();
+  if (!empty($child_link_item)) {
+    $attributes = (!empty($child_link_item['localized_options'])) ? $child_link_item['localized_options'] : $child_link_item['options'];
+    $forward_to_child_item = l($child_link_item['link_title'], $child_link_item['link_path'], array($child_link_item['localized_options']));
+    $vars['ftc_link_item'] = $forward_to_child_item;
+  }
+}
+
+/**
+ * Return an array of the current pages closest child link.
+ */
+function get_child_link_item() {
+  // We need the current active trail and menu information of the current page
+  $children = array();
+  $current = db_query("select menu_name, mlid from {menu_links} where link_path = :node", array(':node' => current_path()));
+  $current_info = array();
+  foreach ($current as $value) {
+    $current_info[] = $value;
+  }
+
+  // If current page is part of a menu, use its info to construct a db_query
+  // to get the any menu links who's plid equals the current mlid.
+  if($current_info) {
+    $result = db_query("select mlid, plid, link_path, link_title from {menu_links} where menu_name=:menu and plid=:mlid and hidden=0 order by weight, link_title", array(':menu' => $current_info[0]->menu_name, ':mlid' => $current_info[0]->mlid));
+
+    foreach ($result as $row) {
+      $child_mlid[] = $row->mlid;
+    }
+    if (!empty($child_mlid)) {
+      $child_mlid = array_reverse($child_mlid, true);
+      $child_mlid = array_pop($child_mlid);
+    }
+  }
+
+  if ((!empty($child_mlid)) && ($child_mlid != 0)) {
+    $clid_item = menu_link_load($child_mlid);
+  }
+  else {
+    $clid_item = NULL;
+  }
+
+  return $clid_item;
+}

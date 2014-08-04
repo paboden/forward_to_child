@@ -1,0 +1,6 @@
+name = Forward to Child
+description = This module creates a block and panel pane that displays the current pages' closest child page.
+core = 7.x
+version = 1.0
+package = User interface
+configure = admin/config/user-interface/forward-to-child
